@@ -75,8 +75,34 @@ for file_name, tab_name in StorefilePath:
 
 # COMMAND ----------
 
+select train.*, stores.*, oil.*, hol.*,trans.*
+from
+(select * from train_set) train
+left join 
+(select * from stores) stores
+on train.store_nbr = stores.store_nbr
+left join (select * from oil) oil
+on oil.date = train.date
+left join (select * from holidays_events) hol
+on hol.date = train.date
+left join (select * from transactions) trans
+on trans.date = train.date
+
+# COMMAND ----------
+
 # MAGIC %sql
-# MAGIC select * from sample_submission
+# MAGIC select distinct cluster from stores
+# MAGIC where store_nbr = 25
+# MAGIC
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC
+# MAGIC #sum of total sales and total transactions per month per store nbr per product family - sales info
+# MAGIC # number of products per store nbr - product ingfo
+# MAGIC # number of stores per city per cluster
+# MAGIC # number of sales and transactions per city per cluster
 
 # COMMAND ----------
 
