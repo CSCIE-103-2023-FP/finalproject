@@ -11,6 +11,10 @@
 
 # COMMAND ----------
 
+# MAGIC %fs ls /mnt/g5/bronze/
+
+# COMMAND ----------
+
 dbutils.fs.mkdirs("dbfs:/mnt/g5/silver/great_expectations")
 
 # COMMAND ----------
