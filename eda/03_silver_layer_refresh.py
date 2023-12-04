@@ -15,7 +15,7 @@
 
 # COMMAND ----------
 
-dbutils.fs.mkdirs("dbfs:/mnt/g5/silver/great_expectations")
+# MAGIC %fs ls /mnt/g5/bronze/holiday_events
 
 # COMMAND ----------
 
@@ -24,7 +24,7 @@ import re
 userName = spark.sql("SELECT CURRENT_USER").collect()[0]['current_user()']
 userName0 = userName.split("@")[0]
 userName0 = re.sub('[!#$%&\'*+-/=?^`{}|\.]+', '_', userName0)
-databaseName = f"{userName0}_Final_Project"
+databaseName = f"{userName0}_final_Project"
 
 # COMMAND ----------
 
@@ -49,7 +49,7 @@ spark.sql(f"USE {databaseName}")
 
 # COMMAND ----------
 
-display(spark.sql(f"SELECT * FROM {holiday_table_name} LIMIT 3"))
+# display(spark.sql(f"SELECT * FROM {holiday_table_name} LIMIT 3"))
 
 # COMMAND ----------
 
@@ -57,9 +57,13 @@ spark.sql(f"DROP TABLE IF EXISTS {holiday_table_name}");
 
 # COMMAND ----------
 
+# display(spark.sql(f"SELECT * FROM {holiday_table_name} LIMIT 3"))
+
+# COMMAND ----------
+
 # spark.sql(f"DROP TABLE IF EXISTS {table_name}");
 # spark.sql(f"CREATE TABLE IF NOT EXISTS {table_name} \
-#   (`date` DATE, \
+#   (`date` DATE, \ 
 #   `type` varchar(20),\
 #   locale varchar(10),\
 #   locale_name varchar(50),\
@@ -91,6 +95,7 @@ except ModuleNotFoundError:
 from pyspark.sql.functions import *
 from pyspark.sql.types import IntegerType, DecimalType, StringType, StructType, StructField, BooleanType
 from delta.tables import *
+import pandas as pd
 
 # COMMAND ----------
 
@@ -108,25 +113,19 @@ databaseName
 
 # COMMAND ----------
 
-# define a non-stream dataframe reading from the bronze tables
-# if we change this to readStream, the Great Expectation does not work out of the box
-df_holiday_events = spark.read.format("delta")\
-    .option("header", "true")\
-    .option("inferSchema", "true")\
-    .table(f"{databaseName}.bronze_holidays_events")
-
-# COMMAND ----------
-
-df_holiday_events.isStreaming
-
-# COMMAND ----------
-
 # MAGIC %md
 # MAGIC #### Prepare Great Expectation validation / expectation suite for Holiday Events
 
 # COMMAND ----------
 
+# MAGIC %sql
+# MAGIC SHOW TABLES
 
+# COMMAND ----------
+
+# read parque from bronze holiday parquet
+bronze_table = f"{databaseName.lower()}.bronze_holidays_events"
+dataframe = spark.sql(f"SELECT * FROM {bronze_table}")
 
 # COMMAND ----------
 
@@ -147,7 +146,7 @@ dataframe_datasource = context.sources.add_or_update_spark(
 try:
     dataframe_asset = dataframe_datasource.add_dataframe_asset(
         name="silver_holiday_events_df_asset",
-        dataframe=df_holiday_events
+        dataframe=dataframe
     )
 except ValueError as e:
     print (e)
@@ -200,15 +199,25 @@ holiday_dim_schema = StructType().add(
 
 # COMMAND ----------
 
+# define a non-stream dataframe reading from the bronze tables
+# if we change this to readStream, the Great Expectation does not work out of the box
+df_holiday_events = spark.readStream.format("delta")\
+    .option("header", "true")\
+    .option("changedatafeed", "true")\
+    .option("inferSchema", "true")\
+    .table(f"{databaseName}.bronze_holidays_events")
+
+# COMMAND ----------
+
 df_holiday_events.isStreaming
 
 # COMMAND ----------
 
-df_holiday_events.show(5)
+
 
 # COMMAND ----------
 
-df_holiday_events.write.option("overwrite","True").saveAsTable(f"{holiday_table_name}")
+df_holiday_events.writeStream.option("overwrite","True").saveAsTable(f"{holiday_table_name}")
 
 # COMMAND ----------
 
