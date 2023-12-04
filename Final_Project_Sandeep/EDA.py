@@ -75,18 +75,19 @@ for file_name, tab_name in StorefilePath:
 
 # COMMAND ----------
 
-select train.*, stores.*, oil.*, hol.*,trans.*
-from
-(select * from train_set) train
-left join 
-(select * from stores) stores
-on train.store_nbr = stores.store_nbr
-left join (select * from oil) oil
-on oil.date = train.date
-left join (select * from holidays_events) hol
-on hol.date = train.date
-left join (select * from transactions) trans
-on trans.date = train.date
+# MAGIC %sql
+# MAGIC select train.*, stores.*, oil.*, hol.*,trans.*
+# MAGIC from
+# MAGIC (select * from train_set) train
+# MAGIC left join 
+# MAGIC (select * from stores) stores
+# MAGIC on train.store_nbr = stores.store_nbr
+# MAGIC left join (select * from oil) oil
+# MAGIC on oil.date = train.date
+# MAGIC left join (select * from holidays_events) hol
+# MAGIC on hol.date = train.date
+# MAGIC left join (select * from transactions) trans
+# MAGIC on trans.date = train.date
 
 # COMMAND ----------
 
