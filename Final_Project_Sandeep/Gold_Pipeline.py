@@ -68,10 +68,10 @@ TrainDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_t
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC --sum of total sales and total transactions per month per store nbr per product family - sales info
+# MAGIC --sum of total sales per month per store nbr per product family - sales info
 # MAGIC --number of products per store nbr - product ingfo
-# MAGIC --number of stores per city per cluster
-# MAGIC --number of sales and transactions per city per cluster
+# MAGIC --number of stores per city per cluster 
+# MAGIC --number of transactions per store per city per cluster month year
 
 # COMMAND ----------
 
