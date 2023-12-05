@@ -1,5 +1,4 @@
 # Databricks notebook source
-# DBTITLE 1,Rebuild Database
 import re
 userName = spark.sql("SELECT CURRENT_USER").collect()[0]['current_user()']
 userName0 = userName.split("@")[0]
@@ -8,37 +7,68 @@ userName1 = userName.split("@")[1]
 userName = f'{userName0}@{userName1}'
 dbutils.fs.mkdirs(f"/Users/{userName}/data")
 userDir = f"/Users/{userName}/data"
-databaseName = f"{userName0}_Final_Project"
+databaseName = f"{userName0}_FinalProject_01"
 
 print('databaseName ' + databaseName)
 print('UserDir ' + userDir)
 
-spark.sql(f"DROP DATABASE IF EXISTS {databaseName} CASCADE")
-spark.sql(f"CREATE DATABASE {databaseName}")
 spark.sql(f"use {databaseName}")
-
-print (f"Database {databaseName} successfully rebuilt.")
-
-# COMMAND ----------
-
-# DBTITLE 1,Load Bronze Tables
-rootPath = "dbfs:/mnt/data/2023-kaggle-final/store-sales/"
-
-for file in dbutils.fs.ls(rootPath):
-  tableName = "bronze_" + file.name.replace('.csv', '')
-  print (f"processing file {file.name} into table name {tableName}...")
-
-  loadDf = spark.read.option("header", True).option("inferSchema", True).csv(file.path)
-  loadDf.write.saveAsTable(tableName) #saves delta table
-  
-  print(f"Successfully saved delta table {tableName}.")
-  print("")
-
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC ## Silver Table Creation
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC DROP TABLE IF EXISTS silver_dim_product_family;
+# MAGIC
+# MAGIC CREATE TABLE silver_dim_product_family
+# MAGIC AS
+# MAGIC SELECT
+# MAGIC   ROW_NUMBER() OVER(ORDER BY null) AS product_family_nbr,
+# MAGIC   family
+# MAGIC FROM
+# MAGIC (
+# MAGIC   SELECT DISTINCT
+# MAGIC     family
+# MAGIC   FROM bronze_train
+# MAGIC   ORDER BY
+# MAGIC     family
+# MAGIC )
+
+# COMMAND ----------
+
+# DBTITLE 1,Fact table is the training set
+# MAGIC %sql
+# MAGIC
+# MAGIC DROP TABLE IF EXISTS silver_fact_sales;
+# MAGIC
+# MAGIC CREATE TABLE silver_fact_sales
+# MAGIC AS
+# MAGIC SELECT
+# MAGIC   id,
+# MAGIC   date,
+# MAGIC   store_nbr,
+# MAGIC   pf.product_family_nbr,
+# MAGIC   sales,
+# MAGIC   onpromotion
+# MAGIC FROM bronze_train AS bt
+# MAGIC INNER JOIN silver_dim_product_family AS pf ON
+# MAGIC   bt.family = pf.family
+# MAGIC
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC DROP TABLE IF EXISTS silver_dim_store;
+# MAGIC
+# MAGIC CREATE TABLE silver_dim_store
+# MAGIC AS
+# MAGIC   SELECT
+# MAGIC     *
+# MAGIC   FROM bronze_stores
 
 # COMMAND ----------
 
@@ -120,6 +150,7 @@ df_dates.createOrReplaceTempView("date_base")
 # MAGIC %sql
 # MAGIC SELECT
 # MAGIC   t.*,
+# MAGIC   pf.family,
 # MAGIC   d.is_national_holiday,
 # MAGIC   d.is_national_holiday_transferred,
 # MAGIC   d.is_payday,
@@ -127,9 +158,11 @@ df_dates.createOrReplaceTempView("date_base")
 # MAGIC   d.days_since_earthquake,
 # MAGIC   IF(rh.date IS NOT NULL, True, False) AS is_regional_holiday,
 # MAGIC   s.*
-# MAGIC FROM bronze_train AS t
-# MAGIC INNER JOIN bronze_stores AS s ON
+# MAGIC FROM silver_fact_sales AS t
+# MAGIC INNER JOIN silver_dim_store AS s ON
 # MAGIC   t.store_nbr = s.store_nbr
+# MAGIC INNER JOIN silver_dim_product_family AS pf ON
+# MAGIC   t.product_family_nbr = pf.product_family_nbr
 # MAGIC INNER JOIN silver_dim_date AS d ON
 # MAGIC   t.date = d.date
 # MAGIC LEFT OUTER JOIN silver_dim_regional_holiday AS rh ON
