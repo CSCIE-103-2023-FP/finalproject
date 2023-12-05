@@ -7,12 +7,11 @@ userName1 = userName.split("@")[1]
 userName = f'{userName0}@{userName1}'
 dbutils.fs.mkdirs(f"/Users/{userName}/data")
 userDir = f"/Users/{userName}/data"
-databaseName = f"{userName0}_Assgn_01"
+databaseName = f"{userName0}_FinalProject_01"
 
 print('databaseName ' + databaseName)
 print('UserDir ' + userDir)
 
-spark.sql(f"CREATE DATABASE IF NOT EXISTS {databaseName}")
 spark.sql(f"use {databaseName}")
 
 # COMMAND ----------
@@ -25,45 +24,11 @@ spark.sql(f"use {databaseName}")
 
 # COMMAND ----------
 
-StorefilePath = [('dbfs:/mnt/data/2023-kaggle-final/store-sales/holidays_events.csv', 'holidays_events'),
-('dbfs:/mnt/data/2023-kaggle-final/store-sales/oil.csv', 'oil'),
-('dbfs:/mnt/data/2023-kaggle-final/store-sales/sample_submission.csv','sample_submission') ,
-('dbfs:/mnt/data/2023-kaggle-final/store-sales/stores.csv','stores'),
-('dbfs:/mnt/data/2023-kaggle-final/store-sales/test.csv','test_set'),
-('dbfs:/mnt/data/2023-kaggle-final/store-sales/train.csv','train_set'),
-('dbfs:/mnt/data/2023-kaggle-final/store-sales/transactions.csv','transactions')]
-
-for file_name, tab_name in StorefilePath:
-  StoresDF = (spark.read
-    .option("sep", ",")
-    .option("header", True)
-    .csv('dbfs:/mnt/data/2023-kaggle-final/store-sales/stores.csv'))
-
-  StoresDF.createOrReplaceTempView(tab_name)
-
-# COMMAND ----------
-
-TrainDF = (spark.read
-    .option("sep", ",")
-    .option("header", True)
-    .csv('dbfs:/mnt/data/2023-kaggle-final/store-sales/train.csv'))
-
-TrainDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_train_set9")
-
-# COMMAND ----------
-
 # MAGIC %sql
 # MAGIC
-# MAGIC select * from silver_train_set9
+# MAGIC drop table if exists gold_sales_summary;
 # MAGIC
-
-# COMMAND ----------
-
-# MAGIC %sql
-# MAGIC
-# MAGIC drop table if exists GOLD_SALES_SUMMARY;
-# MAGIC
-# MAGIC CREATE OR REPLACE TABLE GOLD_SALES_SUMMARY (store_nbr string, store_city string, store_state string, family STRING, month_train_date string, year_train_date string, total_sales STRING) USING delta TBLPROPERTIES (delta.enableChangeDataFeed = true)
+# MAGIC CREATE OR REPLACE TABLE gold_sales_summary (store_nbr string, store_city string, store_state string, family STRING, month_train_date string, year_train_date string, total_sales STRING) USING delta
 
 # COMMAND ----------
 
@@ -77,7 +42,7 @@ TrainDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_t
 
 # MAGIC %sql
 # MAGIC --sum of total sales  per month per store nbr per product family - sales info
-# MAGIC MERGE INTO GOLD_SALES_SUMMARY USING
+# MAGIC MERGE INTO gold_sales_summary USING
 # MAGIC (select distinct store_nbr,store_city, store_state, family,month(train_date) as month_train_date, year(train_date) year_train_date, sum(sales) OVER(PARTITION BY store_nbr,family, month(train_date), year(train_date)
 # MAGIC                                 ORDER BY month(silver_sales.train_date) desc, year(silver_sales.train_date) desc
 # MAGIC                           ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS total_sales
