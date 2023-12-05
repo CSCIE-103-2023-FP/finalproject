@@ -24,7 +24,7 @@ import re
 userName = spark.sql("SELECT CURRENT_USER").collect()[0]['current_user()']
 userName0 = userName.split("@")[0]
 userName0 = re.sub('[!#$%&\'*+-/=?^`{}|\.]+', '_', userName0)
-databaseName = f"{userName0}_final_Project"
+databaseName = f"{userName0}_final_project"
 
 # COMMAND ----------
 
@@ -53,7 +53,7 @@ spark.sql(f"USE {databaseName}")
 
 # COMMAND ----------
 
-spark.sql(f"DROP TABLE IF EXISTS {holiday_table_name}");
+silver_layer_checkpoints = f"/mnt/g5/silver/checkpoints"
 
 # COMMAND ----------
 
@@ -109,7 +109,7 @@ import pandas as pd
 
 # COMMAND ----------
 
-databaseName
+
 
 # COMMAND ----------
 
@@ -124,7 +124,7 @@ databaseName
 # COMMAND ----------
 
 # read parque from bronze holiday parquet
-bronze_table = f"{databaseName.lower()}.bronze_holidays_events"
+bronze_table = f"{databaseName}.bronze_holidays_events"
 dataframe = spark.sql(f"SELECT * FROM {bronze_table}")
 
 # COMMAND ----------
@@ -187,6 +187,23 @@ print (f"Result of Validation Test 01 is {test_values_validator['success']}")
 
 # COMMAND ----------
 
+spark.sql(f"DROP TABLE IF EXISTS {holiday_table_name}")
+spark.sql(f"CREATE TABLE IF NOT EXISTS {holiday_table_name} \
+  (`date` DATE, \
+  `type` varchar(20), \
+  locale varchar(10), \
+  locale_name varchar(50), \
+  transferred BOOLEAN, \
+  `description` varchar(100)) \
+  USING delta TBLPROPERTIES (delta.enableChangeDataFeed = true) partitioned by (locale)")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #### Initial Load
+
+# COMMAND ----------
+
 holiday_dim_schema = StructType().add(
   StructField("holidayId", IntegerType())).add(
   StructField("date", StringType())).add(
@@ -196,6 +213,39 @@ holiday_dim_schema = StructType().add(
   StructField("description", StringType())).add(
   StructField("transferred", StringType())
   )
+
+df_holiday_events_initial = spark.read.table(f"{databaseName}.bronze_holidays_events")
+
+# COMMAND ----------
+
+df_holiday_events_deduped = df_holiday_events_initial.dropDuplicates()
+
+# COMMAND ----------
+
+from pyspark.sql.functions import when
+
+df_holiday_events_deduped = df_holiday_events_deduped.withColumn(
+  "transferred",
+  when(df_holiday_events_deduped.transferred == "TRUE", True)
+  .when(df_holiday_events_deduped.transferred == "FALSE", False)
+  .otherwise(None)
+)
+
+df_holiday_events_deduped.write.format("delta").mode("append").saveAsTable(f"{holiday_table_name}")
+
+# COMMAND ----------
+
+holiday_table_name
+
+# COMMAND ----------
+
+display(spark.sql(f"SELECT * FROM table_changes('silver_holiday_events', 0)"))
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC #### Go Forward batch load
+# MAGIC * setup readStream with Change Data Feed
 
 # COMMAND ----------
 
@@ -217,7 +267,10 @@ df_holiday_events.isStreaming
 
 # COMMAND ----------
 
-df_holiday_events.writeStream.option("overwrite","True").saveAsTable(f"{holiday_table_name}")
+df_holiday_events.writeStream.format("delta")\
+   .outputMode("append")\
+   .option("checkpointLocation", f"{silver_layer_checkpoints}")\
+   .toTable(f"{holiday_table_name}")
 
 # COMMAND ----------
 
@@ -230,11 +283,11 @@ display(spark.sql(f"SELECT * from {holiday_table_name} LIMIT 10"))
 
 # COMMAND ----------
 
-spark.sql(f"ALTER TABLE {holiday_table_name} SET TBLPROPERTIES (delta.enableChangeDataFeed=true)")
+# spark.sql(f"ALTER TABLE {holiday_table_name} SET TBLPROPERTIES (delta.enableChangeDataFeed=true)")
 
 # COMMAND ----------
 
-display(spark.sql(f"DESC HISTORY {holiday_table_name}"))
+# display(spark.sql(f"DESC HISTORY {holiday_table_name}"))
 
 # COMMAND ----------
 
@@ -249,7 +302,37 @@ display(spark.sql(f"SELECT * FROM {databaseName}.bronze_holidays_events LIMIT 3"
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC INSERT INTO anp6911_final_project.bronze_holidays_events (date, type, locale, locale_name, description, transferred) VALUES("2020-01-01","Holiday","National","Manta","Test Manta Holiday Insert", "false")
+# MAGIC SELECT * FROM anp6911_final_project.silver_holiday_events WHERE date>="2020-01-01"
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC INSERT INTO anp6911_final_project.bronze_holidays_events (date, type, locale, locale_name, description, transferred) VALUES("2020-01-02","Holiday","National","Manta","Test 2 Manta Holiday Insert", "false")
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC SELECT * FROM anp6911_final_project.silver_holiday_events WHERE date>="2020-01-01"
+
+# COMMAND ----------
+
+display(spark.sql(f"SELECT * FROM table_changes('silver_holiday_events', 0,1)"))
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC UPDATE anp6911_final_project.bronze_holidays_events 
+# MAGIC set `description` = "Test 3 to check Manta Holiday Insert"
+# MAGIC WHERE `date` = "2020-01-02"
+
+# COMMAND ----------
+
+display(spark.sql(f"SELECT * FROM table_changes('silver_holiday_events', 0,2)"))
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC # Ignore below - rough work - work in Progress
 
 # COMMAND ----------
 
