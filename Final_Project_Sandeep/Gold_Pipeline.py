@@ -59,8 +59,8 @@ TrainDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_t
 # MAGIC
 # MAGIC --insert into silver_train_set9 VALUES('1000023', '2016-05-05','1','AUTOMOTIVE','30','0');
 # MAGIC --update silver_train_set9
-# MAGIC --set sales = 100
-# MAGIC --where store_nbr = 1 and id = '1575288'
+# MAGIC --set sales = 500
+# MAGIC --where store_nbr = 1 and id = '1575288';
 # MAGIC --select * from table_changes('silver_train_set9');
 # MAGIC
 # MAGIC
@@ -94,24 +94,28 @@ TrainDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_t
 # MAGIC                                 ORDER BY month(train.date) desc, year(train.date) desc
 # MAGIC                           ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS total_sales
 # MAGIC from silver_train_set9 train
-# MAGIC where store_nbr = 1 and family = 'AUTOMOTIVE' AND MONTH(train.date) = 5 AND YEAR(train.date) = '2016'
-# MAGIC AND ID NOT LIKE '%1000%'
+# MAGIC where store_nbr = 1 and family = 'AUTOMOTIVE' AND MONTH(train.date) = 6 AND YEAR(train.date) = '2015'
+# MAGIC --AND ID = '1575288'
 
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC
-# MAGIC select distinct train.store_nbr, train.family, month(train.date) as month_train_date, year(train.date) year_train_date, 
+# MAGIC select train.*
+# MAGIC from
+# MAGIC (
+# MAGIC   select distinct train.store_nbr, train.family, month(train.date) as month_train_date, year(train.date) year_train_date, 
 # MAGIC     sum(sales) OVER(PARTITION BY train.store_nbr,train.family, month(train.date), year(train.date)
 # MAGIC                                 ORDER BY month(train.date) desc, year(train.date) desc
 # MAGIC                           ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS total_sales
 # MAGIC from silver_train_set9 train
-# MAGIC INNER JOIN (SELECT distinct STORE_NBR, family , month(date) as month_change_train_date, year(date) year_change_train_date
+# MAGIC --where store_nbr = 1 and family = 'AUTOMOTIVE' AND MONTH(train.date) = 6 AND YEAR(train.date) = '2015'
+# MAGIC ) train
+# MAGIC INNER JOIN (SELECT distinct STORE_NBR, family , month(date) as month_change_train_date, year(date) year_change_train_date,  _change_type
 # MAGIC             from table_changes('silver_train_set9',4)) as change_train
 # MAGIC on train.store_nbr = change_train.store_nbr
 # MAGIC and train.family = change_train.family
-# MAGIC and month(train.date) = change_train.month_change_train_date
-# MAGIC and year(train.date) = change_train.year_change_train_date
+# MAGIC and month_train_date = change_train.month_change_train_date
+# MAGIC and year_train_date = change_train.year_change_train_date
 
 # COMMAND ----------
 
@@ -121,10 +125,12 @@ TrainDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_t
 # MAGIC (select distinct train.store_nbr AS STORE_NBR, train.family AS FAMILY, month(train.date) as month_train_date, year(train.date) year_train_date, 
 # MAGIC     sum(sales) OVER(PARTITION BY train.store_nbr,train.family, month(train.date), year(train.date)
 # MAGIC                                 ORDER BY month(train.date) desc, year(train.date) desc
-# MAGIC                           ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS total_sales
+# MAGIC                           ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS total_sales, _change_type
 # MAGIC from silver_train_set9 train
-# MAGIC INNER JOIN (SELECT distinct STORE_NBR, family , month(date) as month_change_train_date, year(date) year_change_train_date
-# MAGIC             from table_changes('silver_train_set9',4)) as change_train
+# MAGIC INNER JOIN (SELECT distinct STORE_NBR, family , month(date) as month_change_train_date, year(date) year_change_train_date,
+# MAGIC             _change_type
+# MAGIC             from table_changes('silver_train_set9',2)
+# MAGIC             where _change_type <> 'update_preimage') as change_train
 # MAGIC on train.store_nbr = change_train.store_nbr
 # MAGIC and train.family = change_train.family
 # MAGIC and month(train.date) = change_train.month_change_train_date
@@ -134,13 +140,14 @@ TrainDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_t
 # MAGIC and GOLD_SALES_SUMMARY2.family = cdf_silver.family
 # MAGIC and GOLD_SALES_SUMMARY2.month_train_date = cdf_silver.month_train_date
 # MAGIC and GOLD_SALES_SUMMARY2.year_train_date = cdf_silver.year_train_date
-# MAGIC when matched then
+# MAGIC when matched and cdf_silver._change_type = 'update_postimage' then
 # MAGIC     update set GOLD_SALES_SUMMARY2.total_sales = cdf_silver.total_sales
 # MAGIC when not matched then
-# MAGIC     insert (store_nbr, month_train_date, year_train_date, total_sales) values (store_nbr, month_train_date, year_train_date, total_sales)
+# MAGIC     insert (store_nbr,family, month_train_date, year_train_date, total_sales) values (store_nbr,family, month_train_date, year_train_date, total_sales)
 
 # COMMAND ----------
 
 # MAGIC %sql
 # MAGIC
 # MAGIC select * from GOLD_SALES_SUMMARY2
+# MAGIC  
