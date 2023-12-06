@@ -54,16 +54,28 @@ TrainDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_t
 
 # MAGIC %sql
 # MAGIC
-# MAGIC select * from silver_train_set9
+# MAGIC --select * from silver_train_set9
+# MAGIC --where date = '2015-06-06';
+# MAGIC
+# MAGIC --insert into silver_train_set9 VALUES('1000023', '2016-05-05','1','AUTOMOTIVE','30','0');
+# MAGIC --update silver_train_set9
+# MAGIC --set sales = 100
+# MAGIC --where store_nbr = 1 and id = '1575288'
+# MAGIC --select * from table_changes('silver_train_set9');
+# MAGIC
+# MAGIC
+# MAGIC SELECT *
+# MAGIC             from table_changes('silver_train_set9',4)
+# MAGIC   
 # MAGIC
 
 # COMMAND ----------
 
 # MAGIC %sql
 # MAGIC
-# MAGIC drop table if exists GOLD_SALES_SUMMARY;
+# MAGIC drop table if exists GOLD_SALES_SUMMARY2;
 # MAGIC
-# MAGIC CREATE OR REPLACE TABLE GOLD_SALES_SUMMARY (store_nbr string, store_city string, store_state string, family STRING, month_train_date string, year_train_date string, total_sales STRING) USING delta TBLPROPERTIES (delta.enableChangeDataFeed = true)
+# MAGIC CREATE OR REPLACE TABLE GOLD_SALES_SUMMARY2 (store_nbr string, family STRING, month_train_date string, year_train_date string, total_sales STRING) USING delta 
 
 # COMMAND ----------
 
@@ -76,28 +88,59 @@ TrainDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_t
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC --sum of total sales  per month per store nbr per product family - sales info
-# MAGIC MERGE INTO GOLD_SALES_SUMMARY USING
-# MAGIC (select distinct store_nbr,store_city, store_state, family,month(train_date) as month_train_date, year(train_date) year_train_date, sum(sales) OVER(PARTITION BY store_nbr,family, month(train_date), year(train_date)
-# MAGIC                                 ORDER BY month(silver_sales.train_date) desc, year(silver_sales.train_date) desc
+# MAGIC
+# MAGIC select  train.store_nbr, train.family, month(train.date) as month_train_date, year(train.date) year_train_date, SALES, ID,
+# MAGIC   sum(sales) OVER(PARTITION BY train.store_nbr,train.family, month(train.date), year(train.date)
+# MAGIC                                 ORDER BY month(train.date) desc, year(train.date) desc
 # MAGIC                           ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS total_sales
-# MAGIC from
-# MAGIC (select train.store_nbr,stores.city as store_city, stores.state as store_state, train.family, train.sales, train.date as train_date
-# MAGIC from
-# MAGIC (select * from train_set) train
-# MAGIC left join 
-# MAGIC (select * from stores) stores
-# MAGIC on train.store_nbr = stores.store_nbr) silver_sales
-# MAGIC INNER JOIN (SELECT STORE_NBR, SALES from table_changes('silver_train_set9',0)) as silver_train
-# MAGIC on silver_sales.store_nbr = silver_train.store_nbr) cdf_silver
-# MAGIC on GOLD_SALES_SUMMARY.STORE_NBR = cdr_silver.STORE_NBR
-# MAGIC when matched then
-# MAGIC     update set GOLD_SALES_SUMMARY.total_sales = cdf_silver.total_sales
-# MAGIC when not matched then
-# MAGIC     insert (store_nbr, store_city, store_state, month_train_date, year_train_date, total_sales) values (store_nbr, store_city, store_state, month_train_date, year_train_date, total_sales)
+# MAGIC from silver_train_set9 train
+# MAGIC where store_nbr = 1 and family = 'AUTOMOTIVE' AND MONTH(train.date) = 5 AND YEAR(train.date) = '2016'
+# MAGIC AND ID NOT LIKE '%1000%'
 
 # COMMAND ----------
 
 # MAGIC %sql
 # MAGIC
-# MAGIC select * from train_set
+# MAGIC select distinct train.store_nbr, train.family, month(train.date) as month_train_date, year(train.date) year_train_date, 
+# MAGIC     sum(sales) OVER(PARTITION BY train.store_nbr,train.family, month(train.date), year(train.date)
+# MAGIC                                 ORDER BY month(train.date) desc, year(train.date) desc
+# MAGIC                           ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS total_sales
+# MAGIC from silver_train_set9 train
+# MAGIC INNER JOIN (SELECT distinct STORE_NBR, family , month(date) as month_change_train_date, year(date) year_change_train_date
+# MAGIC             from table_changes('silver_train_set9',4)) as change_train
+# MAGIC on train.store_nbr = change_train.store_nbr
+# MAGIC and train.family = change_train.family
+# MAGIC and month(train.date) = change_train.month_change_train_date
+# MAGIC and year(train.date) = change_train.year_change_train_date
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC --sum of total sales  per month per store nbr per product family - sales info
+# MAGIC MERGE INTO GOLD_SALES_SUMMARY2 USING
+# MAGIC (select distinct train.store_nbr AS STORE_NBR, train.family AS FAMILY, month(train.date) as month_train_date, year(train.date) year_train_date, 
+# MAGIC     sum(sales) OVER(PARTITION BY train.store_nbr,train.family, month(train.date), year(train.date)
+# MAGIC                                 ORDER BY month(train.date) desc, year(train.date) desc
+# MAGIC                           ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS total_sales
+# MAGIC from silver_train_set9 train
+# MAGIC INNER JOIN (SELECT distinct STORE_NBR, family , month(date) as month_change_train_date, year(date) year_change_train_date
+# MAGIC             from table_changes('silver_train_set9',4)) as change_train
+# MAGIC on train.store_nbr = change_train.store_nbr
+# MAGIC and train.family = change_train.family
+# MAGIC and month(train.date) = change_train.month_change_train_date
+# MAGIC and year(train.date) = change_train.year_change_train_date
+# MAGIC ) cdf_silver
+# MAGIC on GOLD_SALES_SUMMARY2.store_nbr = cdf_silver.store_nbr
+# MAGIC and GOLD_SALES_SUMMARY2.family = cdf_silver.family
+# MAGIC and GOLD_SALES_SUMMARY2.month_train_date = cdf_silver.month_train_date
+# MAGIC and GOLD_SALES_SUMMARY2.year_train_date = cdf_silver.year_train_date
+# MAGIC when matched then
+# MAGIC     update set GOLD_SALES_SUMMARY2.total_sales = cdf_silver.total_sales
+# MAGIC when not matched then
+# MAGIC     insert (store_nbr, month_train_date, year_train_date, total_sales) values (store_nbr, month_train_date, year_train_date, total_sales)
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC
+# MAGIC select * from GOLD_SALES_SUMMARY2
