@@ -24,19 +24,13 @@ spark.sql(f"use {databaseName}")
 # MAGIC %sql
 # MAGIC DROP TABLE IF EXISTS silver_dim_product_family;
 # MAGIC
-# MAGIC CREATE TABLE silver_dim_product_family
-# MAGIC AS
-# MAGIC SELECT
-# MAGIC   ROW_NUMBER() OVER(ORDER BY null) AS product_family_nbr,
-# MAGIC   family
-# MAGIC FROM
-# MAGIC (
-# MAGIC   SELECT DISTINCT
+# MAGIC CREATE TABLE silver_dim_product_family (product_family_nbr BIGINT GENERATED ALWAYS AS IDENTITY, family VARCHAR(100));
+# MAGIC
+# MAGIC INSERT INTO silver_dim_product_family  (family) 
+# MAGIC SELECT DISTINCT
 # MAGIC     family
-# MAGIC   FROM bronze_train
-# MAGIC   ORDER BY
-# MAGIC     family
-# MAGIC )
+# MAGIC FROM bronze_train
+# MAGIC ORDER BY family
 
 # COMMAND ----------
 
@@ -143,6 +137,22 @@ df_dates.createOrReplaceTempView("date_base")
 
 # MAGIC %sql
 # MAGIC SELECT * FROM silver_dim_regional_holiday
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC DROP TABLE IF EXISTS silver_dim_national_holiday;
+# MAGIC
+# MAGIC CREATE TABLE silver_dim_national_holiday
+# MAGIC AS
+# MAGIC   SELECT
+# MAGIC     h.*
+# MAGIC   FROM bronze_holidays_events AS h
+# MAGIC   WHERE
+# MAGIC     h.locale = 'National'
+# MAGIC     AND NOT h.transferred
+# MAGIC   ORDER BY
+# MAGIC     h.date
 
 # COMMAND ----------
 
