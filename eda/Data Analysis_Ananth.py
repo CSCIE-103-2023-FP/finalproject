@@ -48,7 +48,7 @@ holiday_events_df.createTempView("holiday_events")
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC SELECT * FROM holiday_events LIMIT 100
+# MAGIC SELECT MIN(`date`) FROM holiday_events LIMIT 100
 
 # COMMAND ----------
 
