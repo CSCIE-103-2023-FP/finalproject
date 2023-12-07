@@ -22,9 +22,10 @@ spark.sql(f"use {databaseName}")
 # COMMAND ----------
 
 # MAGIC %sql
+# MAGIC -- no need to enable CDF, since we anticipate this to be insert only, but still enabling cdf for consistency across all silver tables
 # MAGIC DROP TABLE IF EXISTS silver_dim_product_family;
 # MAGIC
-# MAGIC CREATE TABLE silver_dim_product_family (product_family_nbr BIGINT GENERATED ALWAYS AS IDENTITY, family VARCHAR(100));
+# MAGIC CREATE TABLE silver_dim_product_family (product_family_nbr BIGINT GENERATED ALWAYS AS IDENTITY, family VARCHAR(100)) TBLPROPERTIES (delta.enableChangeDataFeed = true);
 # MAGIC
 # MAGIC INSERT INTO silver_dim_product_family  (family) 
 # MAGIC SELECT DISTINCT
@@ -34,10 +35,22 @@ spark.sql(f"use {databaseName}")
 
 # COMMAND ----------
 
+# MAGIC %sql
+# MAGIC DESC HISTORY silver_dim_product_family
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC SELECT * FROM table_changes("silver_dim_product_family",0,10) LIMIT 10
+
+# COMMAND ----------
+
 # DBTITLE 1,Fact table is the training set
 # MAGIC %sql
-# MAGIC
+# MAGIC -- come back to this fact, does the fact needs CDF?
 # MAGIC DROP TABLE IF EXISTS silver_fact_sales;
+# MAGIC
+# MAGIC -- CREATE TABLE silver_fact_sales (id BIGINT GENERATED ALWAYS AS IDENTITY, `date` DATE, store_nbr INT, product_family_nbr )
 # MAGIC
 # MAGIC CREATE TABLE silver_fact_sales
 # MAGIC AS
@@ -58,11 +71,26 @@ spark.sql(f"use {databaseName}")
 # MAGIC %sql
 # MAGIC DROP TABLE IF EXISTS silver_dim_store;
 # MAGIC
-# MAGIC CREATE TABLE silver_dim_store
-# MAGIC AS
+# MAGIC CREATE TABLE silver_dim_store (id BIGINT GENERATED ALWAYS AS IDENTITY, store_nbr INT, city VARCHAR(100), `state` VARCHAR(100), `type` VARCHAR(2), cluster INT) TBLPROPERTIES (delta.enableChangeDataFeed = true);
+# MAGIC
+# MAGIC INSERT INTO silver_dim_store (store_nbr, city, `state`, `type`, cluster)
 # MAGIC   SELECT
-# MAGIC     *
-# MAGIC   FROM bronze_stores
+# MAGIC   b.store_nbr,
+# MAGIC   b.city,
+# MAGIC   b.state,
+# MAGIC   b.type,
+# MAGIC   b.cluster
+# MAGIC   FROM bronze_stores b
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC DESC HISTORY silver_dim_store
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC SELECT * FROM table_changes("silver_dim_store",0,10) LIMIT 10
 
 # COMMAND ----------
 
@@ -137,22 +165,6 @@ df_dates.createOrReplaceTempView("date_base")
 
 # MAGIC %sql
 # MAGIC SELECT * FROM silver_dim_regional_holiday
-
-# COMMAND ----------
-
-# MAGIC %sql
-# MAGIC DROP TABLE IF EXISTS silver_dim_national_holiday;
-# MAGIC
-# MAGIC CREATE TABLE silver_dim_national_holiday
-# MAGIC AS
-# MAGIC   SELECT
-# MAGIC     h.*
-# MAGIC   FROM bronze_holidays_events AS h
-# MAGIC   WHERE
-# MAGIC     h.locale = 'National'
-# MAGIC     AND NOT h.transferred
-# MAGIC   ORDER BY
-# MAGIC     h.date
 
 # COMMAND ----------
 
