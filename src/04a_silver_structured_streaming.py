@@ -200,6 +200,51 @@ read_bronze_dim = spark.readStream.format("delta")\
 
 # COMMAND ----------
 
+# Function to upsert microBatchOutputDF into Delta table using merge
+def upsertToDelta(microBatchOutputDF, batchId):
+  # Set the dataframe to view name
+  microBatchOutputDF.createOrReplaceTempView("dim_store_updates")
+
+  # Use the view name to apply MERGE
+  # NOTE: You have to use the SparkSession that has been used to define the `updates` dataframe
+
+  # In Databricks Runtime 10.5 and below, you must use the following:
+  # microBatchOutputDF._jdf.sparkSession().sql("""
+  microBatchOutputDF.sparkSession.sql("""
+    MERGE INTO silver_dim_stores t
+    USING dim_store_updates s
+    ON s.store_nbr = t.store_nbr
+    AND s.city = t.city
+    AND s.state = t.start
+    WHEN MATCHED THEN UPDATE SET 
+    t.type = s.type,
+    t.cluster = s.cluster
+    WHEN NOT MATCHED THEN INSERT 
+    (store_nbr,
+    city,
+    `state`,
+    `type`,
+    cluster)
+    VALUES 
+    (s.store_nbr,
+    s.city,
+    s.state,
+    s.type,
+    s.cluster)
+
+  """)
+
+# Write the output of a streaming aggregation query into Delta table
+(read_bronze_dim.writeStream
+  .format("delta")
+  .foreachBatch(upsertToDelta)
+  .outputMode("update")
+  .option("checkpointLocation","/mnt/g5/silver/checkpointDimStore")
+  .start()
+)
+
+# COMMAND ----------
+
 read_bronze_dim.writeStream.format("delta").outputMode("append").option("checkpointLocation","/mnt/g5/silver/checkpointDimStore").toTable("silver_dim_store")
 
 # COMMAND ----------
