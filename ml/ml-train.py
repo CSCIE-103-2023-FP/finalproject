@@ -179,7 +179,7 @@ def build_model(p_df):
       mlflow.log_metric("rfr_rmse", rfr_rmse )
       mlflow.log_metric("xgbr_mape", xgbr_mape )
       mlflow.log_metric("xgbr_rmse", xgbr_rmse )
-      #mlflow.sklearn.log_model(ts_model, f"{store_num}_{family}_model")
+      mlflow.sklearn.log_model(ts_model, f"{store_num}_{family}_model")
 
       # Return successful:
       return_df.loc[len(return_df.index)] = [store_num, family, True, ''] 
