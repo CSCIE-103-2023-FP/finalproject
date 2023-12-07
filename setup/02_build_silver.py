@@ -168,6 +168,36 @@ df_dates.createOrReplaceTempView("date_base")
 
 # COMMAND ----------
 
+# MAGIC %sql
+# MAGIC DROP TABLE IF EXISTS silver_dim_transactions;
+# MAGIC
+# MAGIC CREATE TABLE silver_dim_transactions (id BIGINT GENERATED ALWAYS AS IDENTITY, `date` DATE, store_nbr INT, transactions INT) TBLPROPERTIES (delta.enableChangeDataFeed = true)
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC MERGE INTO silver_dim_transactions t
+# MAGIC USING bronze_transactions s
+# MAGIC ON t.date = s.date
+# MAGIC AND t.store_nbr = s.store_nbr
+# MAGIC WHEN MATCHED THEN UPDATE SET 
+# MAGIC     t.transactions = s.transactions
+# MAGIC     WHEN NOT MATCHED THEN INSERT 
+# MAGIC     (`date`,
+# MAGIC     store_nbr,
+# MAGIC     transactions)
+# MAGIC     VALUES 
+# MAGIC     (s.date,
+# MAGIC     s.store_nbr,
+# MAGIC     s.transactions)
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC SELECT * FROM table_changes("silver_dim_transactions",0,1 ) LIMIT 10
+
+# COMMAND ----------
+
 # DBTITLE 1,Work in progress - joined results.  TODO: repoint the bronze tables to silver tables
 # MAGIC %sql
 # MAGIC SELECT
