@@ -295,7 +295,7 @@ OilDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_tra
 # MAGIC --sum of total sales  per month per store nbr per product family - sales info
 # MAGIC MERGE INTO GOLD_TRANSACTIONS_SUMMARY4 USING
 # MAGIC (select distinct trans.store_nbr, month(trans.date) as month_transactions_date , year(trans.date) AS year_transactions_date , 
-# MAGIC     SUM(TRANSACTIONS) OVER(PARTITION BY month(trans.date) , year(trans.date) 
+# MAGIC     SUM(TRANSACTIONS) OVER(PARTITION BY trans.store_nbr,month(trans.date) , year(trans.date) 
 # MAGIC                                 ORDER BY month(trans.date) desc, year(trans.date)  desc
 # MAGIC                           ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS total_transactions, _change_type
 # MAGIC from silver_transactions_set10 trans
@@ -319,5 +319,5 @@ OilDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_tra
 
 # MAGIC %sql
 # MAGIC
-# MAGIC select * from GOLD_TRANSACTIONS_SUMMARY3
+# MAGIC select * from GOLD_TRANSACTIONS_SUMMARY4
 # MAGIC where store_nbr = '25'
