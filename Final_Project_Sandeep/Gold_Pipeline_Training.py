@@ -63,7 +63,7 @@ TrainDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_t
 # MAGIC     sum(sales) OVER(PARTITION BY train.store_nbr,train.family, month(train.date), year(train.date)
 # MAGIC                                 ORDER BY month(train.date) desc, year(train.date) desc
 # MAGIC                           ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS total_sales, _change_type
-# MAGIC from silver_train_set9 train
+# MAGIC from silver_train_set_stage train
 # MAGIC INNER JOIN (SELECT distinct STORE_NBR, family , month(date) as month_change_train_date, year(date) year_change_train_date,
 # MAGIC             _change_type
 # MAGIC             from table_changes('silver_train_set_stage',0)

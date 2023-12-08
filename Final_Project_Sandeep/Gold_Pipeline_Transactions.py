@@ -66,7 +66,7 @@ OilDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_tra
 # MAGIC     SUM(TRANSACTIONS) OVER(PARTITION BY trans.store_nbr,month(trans.date) , year(trans.date) 
 # MAGIC                                 ORDER BY month(trans.date) desc, year(trans.date)  desc
 # MAGIC                           ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS total_transactions, _change_type
-# MAGIC from silver_transactions_set10 trans
+# MAGIC from silver_transactions_stage trans
 # MAGIC INNER JOIN (SELECT distinct store_nbr, month(date) as month_transactions_date, year(date) year_transactions_date, _change_type
 # MAGIC             from table_changes('silver_transactions_stage',0)
 # MAGIC             where _change_type <> 'update_preimage') change_trans
