@@ -198,6 +198,32 @@ df_dates.createOrReplaceTempView("date_base")
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ### silver_dim_oil
+# MAGIC * treat this as cdf, with just the date and oil value
+# MAGIC * This is supposed to only contain a row for a date and oil value
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC
+# MAGIC DROP TABLE IF EXISTS silver_dim_oil;
+# MAGIC
+# MAGIC CREATE TABLE silver_dim_oil(id BIGINT GENERATED ALWAYS AS IDENTITY, `date` DATE, oil_price DECIMAL(14,2)) TBLPROPERTIES (delta.enableChangeDataFeed= true)
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC INSERT INTO silver_dim_oil (`date`, oil_price) 
+# MAGIC SELECT * FROM bronze_oil;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC SELECT * FROM table_changes("silver_dim_oil",0) LIMIT 10
+
+# COMMAND ----------
+
 # DBTITLE 1,Work in progress - joined results.  TODO: repoint the bronze tables to silver tables
 # MAGIC %sql
 # MAGIC SELECT
