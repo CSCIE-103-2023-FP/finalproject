@@ -18,7 +18,7 @@ spark.sql(f"use {databaseName}")
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC
+# MAGIC --execute
 # MAGIC drop table if exists silver_train_set9;
 # MAGIC
 # MAGIC CREATE TABLE silver_train_set9 (id string, date string, store_nbr string, family STRING, SALES string, ONPROMOTION string) USING delta TBLPROPERTIES (delta.enableChangeDataFeed = true)
@@ -26,7 +26,7 @@ spark.sql(f"use {databaseName}")
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC
+# MAGIC --execute
 # MAGIC drop table if exists silver_oil_set9;
 # MAGIC
 # MAGIC CREATE TABLE silver_oil_set9 (date string, dcoilwtico string) USING delta TBLPROPERTIES (delta.enableChangeDataFeed = true)
@@ -36,7 +36,7 @@ spark.sql(f"use {databaseName}")
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC
+# MAGIC --execute
 # MAGIC drop table if exists silver_transactions_set10;
 # MAGIC
 # MAGIC CREATE TABLE silver_transactions_set10 (date string, store_nbr string, transactions string) USING delta TBLPROPERTIES (delta.enableChangeDataFeed = true)
@@ -46,7 +46,7 @@ spark.sql(f"use {databaseName}")
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC
+# MAGIC --execute
 # MAGIC drop table if exists silver_stores_set12;
 # MAGIC
 # MAGIC CREATE TABLE silver_stores_set12 (store_nbr string, city string, state string, type string, cluster string) USING delta TBLPROPERTIES (delta.enableChangeDataFeed = true)
@@ -56,7 +56,7 @@ spark.sql(f"use {databaseName}")
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC
+# MAGIC --execute
 # MAGIC drop table if exists silver_holiday_set13;
 # MAGIC
 # MAGIC CREATE TABLE silver_holiday_set13 (date string, type string, locale string, locale_name string, description string,
@@ -64,6 +64,7 @@ spark.sql(f"use {databaseName}")
 
 # COMMAND ----------
 
+#execute
 StorefilePath = [('dbfs:/mnt/data/2023-kaggle-final/store-sales/holidays_events.csv', 'holidays_events'),
 ('dbfs:/mnt/data/2023-kaggle-final/store-sales/oil.csv', 'oil'),
 ('dbfs:/mnt/data/2023-kaggle-final/store-sales/sample_submission.csv','sample_submission') ,
@@ -83,10 +84,13 @@ for file_name, tab_name in StorefilePath:
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC select * from holidays_events
+# MAGIC select * from transactions
+# MAGIC --where store_nbr = '45'
 # MAGIC --where month(date) = '2' and year(date) = '2013' and store_nbr = '25'
 
 # COMMAND ----------
+
+
 
 TrainDF = (spark.read
     .option("sep", ",")
@@ -97,6 +101,7 @@ TrainDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_t
 
 # COMMAND ----------
 
+#execute
 OilDF = (spark.read
     .option("sep", ",")
     .option("header", True)
@@ -106,6 +111,7 @@ OilDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_oil
 
 # COMMAND ----------
 
+#execute
 OilDF = (spark.read
     .option("sep", ",")
     .option("header", True)
@@ -118,6 +124,7 @@ OilDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_tra
 
 # COMMAND ----------
 
+#execute
 StorDF = (spark.read
     .option("sep", ",")
     .option("header", True)
@@ -128,6 +135,7 @@ StorDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_st
 
 # COMMAND ----------
 
+#execute
 holDF = (spark.read
     .option("sep", ",")
     .option("header", True)
@@ -139,7 +147,7 @@ holDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_hol
 
 # MAGIC %sql
 # MAGIC
-# MAGIC --select * from silver_train_set9
+# MAGIC select * from silver_train_set9
 # MAGIC --where date = '2015-06-06';
 # MAGIC
 # MAGIC --insert into silver_train_set9 VALUES('1001123', '2016-05-05','1','AUTOMOTIVE','30','0');
@@ -150,9 +158,9 @@ holDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_hol
 # MAGIC
 # MAGIC --delete from silver_train_set9 where id = '1000010';
 # MAGIC
-# MAGIC SELECT *
-# MAGIC             from table_changes('silver_stores_set11',0)
-# MAGIC             where date(_commit_timestamp) = '2023-12-07'
+# MAGIC --SELECT *
+# MAGIC   --          from table_changes('silver_stores_set11',0)
+# MAGIC     --        where date(_commit_timestamp) = '2023-12-07'
 # MAGIC   
 # MAGIC
 
@@ -208,14 +216,14 @@ holDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_hol
 # MAGIC --delete from silver_train_set9 where id = '1000010';
 # MAGIC
 # MAGIC SELECT *
-# MAGIC             from table_changes('silver_holiday_set13',2)
+# MAGIC             from table_changes('silver_train_set9',2)
 # MAGIC
 # MAGIC
 
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC
+# MAGIC --execute
 # MAGIC drop table if exists OIL_PRICE_SUMMARY2;
 # MAGIC
 # MAGIC CREATE OR REPLACE TABLE OIL_PRICE_SUMMARY2 (MONTH_OIL_PRICE string,YEAR_OIL_PRICE STRING, avg_dcoilwtico STRING) USING delta 
@@ -223,7 +231,7 @@ holDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_hol
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC
+# MAGIC --execute
 # MAGIC drop table if exists OIL_PRICE_SUMMARY2;
 # MAGIC
 # MAGIC CREATE OR REPLACE TABLE OIL_PRICE_SUMMARY2 (MONTH_OIL_PRICE string,YEAR_OIL_PRICE STRING, avg_dcoilwtico STRING) USING delta 
@@ -231,15 +239,15 @@ holDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_hol
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC
+# MAGIC --execute
 # MAGIC drop table if exists GOLD_SALES_SUMMARY3;
 # MAGIC
-# MAGIC CREATE OR REPLACE TABLE GOLD_SALES_SUMMARY3 (store_nbr string, family STRING, month_train_date string, year_train_date string, total_sales STRING) USING delta 
+# MAGIC CREATE OR REPLACE TABLE GOLD_SALES_SUMMARY4 (store_nbr string, family STRING, month_train_date string, year_train_date string, total_sales STRING) USING delta 
 
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC
+# MAGIC --execute
 # MAGIC drop table if exists GOLD_TRANSACTIONS_SUMMARY4;
 # MAGIC
 # MAGIC CREATE OR REPLACE TABLE GOLD_TRANSACTIONS_SUMMARY4 (store_nbr string, month_transactions_date string, year_transactions_date string, total_transactions STRING) USING delta 
@@ -247,7 +255,7 @@ holDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_hol
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC
+# MAGIC --execute
 # MAGIC drop table if exists GOLD_STORES_SUMMARY7;
 # MAGIC
 # MAGIC CREATE OR REPLACE TABLE GOLD_STORES_SUMMARY7 (store_nbr string, CITY string, STATE string, TYPE STRING, CLUSTER STRING, active_ind string, expiry_timestmp string, stat string) USING delta 
@@ -255,7 +263,7 @@ holDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_hol
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC
+# MAGIC --execute
 # MAGIC drop table if exists GOLD_HOLIDAY_SUMMARY7;
 # MAGIC
 # MAGIC CREATE OR REPLACE TABLE GOLD_HOLIDAY_SUMMARY7 (date string, type string, locale string, locale_name STRING, description STRING,transferred string, active_ind string, expiry_timestmp string, stat string) USING delta 
@@ -263,12 +271,12 @@ holDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_hol
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC --sum of total sales per month per store nbr per product family - sales info done
-# MAGIC --average of oil price per month per year done
-# MAGIC --holiday events in gold -------->scd2 tbc
-# MAGIC --stores in gold ----------->scd2 (number of stores per city per cluster ) done
+# MAGIC --sum of total sales per month per store nbr per product family - sales info done (GOLD_SALES_SUMMARY4)
+# MAGIC --average of oil price per month per year done (OIL_PRICE_SUMMARY2)
+# MAGIC --holiday events in gold -------->scd2 done (GOLD_HOLIDAY_SUMMARY7)
+# MAGIC --stores in gold ----------->scd2 (number of stores per city per cluster ) done (GOLD_STORES_SUMMARY7)
 # MAGIC --number of products per store nbr - product ing - tbc
-# MAGIC --number of transactions per store per city per cluster month year - done
+# MAGIC --number of transactions per store per city per cluster month year - done (GOLD_TRANSACTIONS_SUMMARY4)
 
 # COMMAND ----------
 
@@ -305,8 +313,9 @@ holDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_hol
 # COMMAND ----------
 
 # MAGIC %sql
+# MAGIC --execute
 # MAGIC --sum of total sales  per month per store nbr per product family - sales info
-# MAGIC MERGE INTO GOLD_SALES_SUMMARY3 USING
+# MAGIC MERGE INTO GOLD_SALES_SUMMARY4 USING
 # MAGIC (select distinct train.store_nbr AS STORE_NBR, train.family AS FAMILY, month(train.date) as month_train_date, year(train.date) year_train_date, 
 # MAGIC     sum(sales) OVER(PARTITION BY train.store_nbr,train.family, month(train.date), year(train.date)
 # MAGIC                                 ORDER BY month(train.date) desc, year(train.date) desc
@@ -321,12 +330,12 @@ holDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_hol
 # MAGIC and month(train.date) = change_train.month_change_train_date
 # MAGIC and year(train.date) = change_train.year_change_train_date
 # MAGIC ) cdf_silver
-# MAGIC on GOLD_SALES_SUMMARY3.store_nbr = cdf_silver.store_nbr
-# MAGIC and GOLD_SALES_SUMMARY3.family = cdf_silver.family
-# MAGIC and GOLD_SALES_SUMMARY3.month_train_date = cdf_silver.month_train_date
-# MAGIC and GOLD_SALES_SUMMARY3.year_train_date = cdf_silver.year_train_date
+# MAGIC on GOLD_SALES_SUMMARY4.store_nbr = cdf_silver.store_nbr
+# MAGIC and GOLD_SALES_SUMMARY4.family = cdf_silver.family
+# MAGIC and GOLD_SALES_SUMMARY4.month_train_date = cdf_silver.month_train_date
+# MAGIC and GOLD_SALES_SUMMARY4.year_train_date = cdf_silver.year_train_date
 # MAGIC when matched and cdf_silver._change_type = 'update_postimage' then
-# MAGIC     update set GOLD_SALES_SUMMARY3.total_sales = cdf_silver.total_sales
+# MAGIC     update set GOLD_SALES_SUMMARY4.total_sales = cdf_silver.total_sales
 # MAGIC when matched and cdf_silver._change_type = 'delete' then
 # MAGIC     delete 
 # MAGIC when not matched then
@@ -342,7 +351,7 @@ holDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_hol
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC  
+# MAGIC --execute
 # MAGIC --sum of total sales  per month per store nbr per product family - sales info
 # MAGIC MERGE INTO OIL_PRICE_SUMMARY2 USING
 # MAGIC (select distinct month(oil.date) as MONTH_OIL_PRICE , year(oil.date) YEAR_OIL_PRICE , 
@@ -373,7 +382,7 @@ holDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_hol
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC  
+# MAGIC --execute
 # MAGIC --sum of total sales  per month per store nbr per product family - sales info
 # MAGIC MERGE INTO GOLD_TRANSACTIONS_SUMMARY4 USING
 # MAGIC (select distinct trans.store_nbr, month(trans.date) as month_transactions_date , year(trans.date) AS year_transactions_date , 
@@ -432,7 +441,7 @@ and change_trans.store_nbr = trans.store_nbr
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC  
+# MAGIC --execute
 # MAGIC --sum of total sales  per month per store nbr per product family - sales info
 # MAGIC MERGE INTO GOLD_STORES_SUMMARY7 USING
 # MAGIC (SELECT distinct store_nbr, city, state, type, cluster, _change_type
@@ -472,6 +481,7 @@ and change_trans.store_nbr = trans.store_nbr
 # COMMAND ----------
 
 # MAGIC %sql
+# MAGIC --execute
 # MAGIC --sum of total sales  per month per store nbr per product family - sales info
 # MAGIC MERGE INTO GOLD_HOLIDAY_SUMMARY7 USING
 # MAGIC (SELECT distinct date, type, locale, locale_name, description,transferred, _change_type
@@ -517,5 +527,40 @@ and change_trans.store_nbr = trans.store_nbr
 # MAGIC %sql
 # MAGIC
 # MAGIC --number of products per store nbr
+# MAGIC --execute
+# MAGIC drop table if exists STORE_PRODUCTS_SUMMARY12;
 # MAGIC
-# MAGIC CREATE TABLE if not exists STORE_PRODUCTS_SUMMARY10 USING DELTA  SE 
+# MAGIC CREATE TABLE if not exists STORE_PRODUCTS_SUMMARY12 USING DELTA  as 
+# MAGIC select train.*, city, state, type, cluster
+# MAGIC from
+# MAGIC       (select distinct store_nbr, family 
+# MAGIC   from table_changes('silver_train_set9',0)
+# MAGIC   where _change_type in ('insert', 'update_postimage')) train
+# MAGIC   left join (select * from GOLD_STORES_SUMMARY7
+# MAGIC               where active_ind = 'Y')  str
+# MAGIC   on train.store_nbr = str.store_nbr
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC select *
+# MAGIC from STORE_PRODUCTS_SUMMARY12
+# MAGIC  
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC select * from GOLD_STORES_SUMMARY7
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC
+# MAGIC --sum of total sales per month per store nbr per product family - sales info done (GOLD_SALES_SUMMARY4)
+# MAGIC --average of oil price per month per year done (OIL_PRICE_SUMMARY2)
+# MAGIC --holiday events in gold -------->scd2 done (GOLD_HOLIDAY_SUMMARY7)
+# MAGIC --stores in gold ----------->scd2 (number of stores per city per cluster ) done (GOLD_STORES_SUMMARY7)
+# MAGIC --number of products per store nbr - product ing - (STORE_PRODUCTS_SUMMARY12)
+# MAGIC --number of transactions per store per city per cluster month year - done (GOLD_TRANSACTIONS_SUMMARY4)
+# MAGIC
+# MAGIC select * from GOLD_HOLIDAY_SUMMARY7
