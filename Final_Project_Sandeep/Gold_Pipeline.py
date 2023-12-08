@@ -232,15 +232,7 @@ holDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_hol
 
 # MAGIC %sql
 # MAGIC --execute
-# MAGIC drop table if exists OIL_PRICE_SUMMARY2;
-# MAGIC
-# MAGIC CREATE OR REPLACE TABLE OIL_PRICE_SUMMARY2 (MONTH_OIL_PRICE string,YEAR_OIL_PRICE STRING, avg_dcoilwtico STRING) USING delta 
-
-# COMMAND ----------
-
-# MAGIC %sql
-# MAGIC --execute
-# MAGIC drop table if exists GOLD_SALES_SUMMARY3;
+# MAGIC drop table if exists GOLD_SALES_SUMMARY4;
 # MAGIC
 # MAGIC CREATE OR REPLACE TABLE GOLD_SALES_SUMMARY4 (store_nbr string, family STRING, month_train_date string, year_train_date string, total_sales STRING) USING delta 
 
