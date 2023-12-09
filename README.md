@@ -8,8 +8,9 @@ Project documentation can be found in Google Slides [here](https://docs.google.c
 
 
 ### Additional References/Technical Material
-
-https://community.databricks.com/t5/data-engineering/best-practices-around-bronze-silver-gold-medallion-model-data/td-p/26044
+* [Kaggle Dataset](https://www.kaggle.com/competitions/store-sales-time-series-forecasting/data?select=train.csv)
+* [Medallion Best Practices](https://community.databricks.com/t5/data-engineering/best-practices-around-bronze-silver-gold-medallion-model-data/td-p/26044)
+* [Prophet Forecasting in Databricks](https://www.databricks.com/blog/2020/01/27/time-series-forecasting-prophet-spark.html)
 
 
 https://www.databricks.com/blog/2021/06/09/how-to-simplify-cdc-with-delta-lakes-change-data-feed.html
