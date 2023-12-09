@@ -1,18 +1,5 @@
 # Databricks notebook source
-import re
-userName = spark.sql("SELECT CURRENT_USER").collect()[0]['current_user()']
-userName0 = userName.split("@")[0]
-userName0 = re.sub('[!#$%&\'*+-/=?^`{}|\.]+', '_', userName0)
-userName1 = userName.split("@")[1]
-userName = f'{userName0}@{userName1}'
-dbutils.fs.mkdirs(f"/Users/{userName}/data")
-userDir = f"/Users/{userName}/data"
-databaseName = f"{userName0}_FinalProject_01"
-
-print('databaseName ' + databaseName)
-print('UserDir ' + userDir)
-
-spark.sql(f"use {databaseName}")
+spark.sql(f"use fp_g5")
 
 # COMMAND ----------
 
@@ -47,16 +34,16 @@ spark.sql(f"use {databaseName}")
 
 # DBTITLE 1,Fact table is the training set
 # MAGIC %sql
+# MAGIC
+# MAGIC  USE fp_g5;
 # MAGIC -- come back to this fact, does the fact needs CDF?
 # MAGIC DROP TABLE IF EXISTS silver_fact_sales;
 # MAGIC
-# MAGIC -- CREATE TABLE silver_fact_sales (id BIGINT GENERATED ALWAYS AS IDENTITY, `date` DATE, store_nbr INT, product_family_nbr )
+# MAGIC CREATE TABLE silver_fact_sales (id BIGINT GENERATED ALWAYS AS IDENTITY, `date` DATE, store_nbr INT, product_family_nbr  INT, sales INT, onpromotion INT) TBLPROPERTIES (delta.enableChangeDataFeed = true);
 # MAGIC
-# MAGIC CREATE TABLE silver_fact_sales
-# MAGIC AS
+# MAGIC INSERT INTO silver_fact_sales (`date`, store_nbr, product_family_nbr, sales, onpromotion)
 # MAGIC SELECT
-# MAGIC   id,
-# MAGIC   date,
+# MAGIC   `date`,
 # MAGIC   store_nbr,
 # MAGIC   pf.product_family_nbr,
 # MAGIC   sales,
@@ -64,11 +51,12 @@ spark.sql(f"use {databaseName}")
 # MAGIC FROM bronze_train AS bt
 # MAGIC INNER JOIN silver_dim_product_family AS pf ON
 # MAGIC   bt.family = pf.family
-# MAGIC
 
 # COMMAND ----------
 
 # MAGIC %sql
+# MAGIC USE fp_g5;
+# MAGIC
 # MAGIC DROP TABLE IF EXISTS silver_dim_store;
 # MAGIC
 # MAGIC CREATE TABLE silver_dim_store (id BIGINT GENERATED ALWAYS AS IDENTITY, store_nbr INT, city VARCHAR(100), `state` VARCHAR(100), `type` VARCHAR(2), cluster INT) TBLPROPERTIES (delta.enableChangeDataFeed = true);
@@ -129,6 +117,8 @@ df_dates.createOrReplaceTempView("date_base")
 
 # DBTITLE 1,silver_dim_date: date dimension with one record per date, with national holidays and earthquake recovery identified
 # MAGIC %sql
+# MAGIC USE fp_g5;
+# MAGIC
 # MAGIC DROP TABLE IF EXISTS silver_dim_date;
 # MAGIC
 # MAGIC CREATE TABLE silver_dim_date
@@ -148,6 +138,9 @@ df_dates.createOrReplaceTempView("date_base")
 
 # DBTITLE 1,silver_dim_regional_holiday: special date dimension with multiple rows per date.  Includes regional holidays
 # MAGIC %sql
+# MAGIC
+# MAGIC USE fp_g5;
+# MAGIC
 # MAGIC DROP TABLE IF EXISTS silver_dim_regional_holiday;
 # MAGIC
 # MAGIC CREATE TABLE silver_dim_regional_holiday
@@ -169,6 +162,9 @@ df_dates.createOrReplaceTempView("date_base")
 # COMMAND ----------
 
 # MAGIC %sql
+# MAGIC
+# MAGIC USE fp_g5;
+# MAGIC
 # MAGIC DROP TABLE IF EXISTS silver_dim_transactions;
 # MAGIC
 # MAGIC CREATE TABLE silver_dim_transactions (id BIGINT GENERATED ALWAYS AS IDENTITY, `date` DATE, store_nbr INT, transactions INT) TBLPROPERTIES (delta.enableChangeDataFeed = true)
@@ -199,53 +195,121 @@ df_dates.createOrReplaceTempView("date_base")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### silver_dim_oil
+# MAGIC ### silver_dim_oil_prices
 # MAGIC * treat this as cdf, with just the date and oil value
 # MAGIC * This is supposed to only contain a row for a date and oil value
 
 # COMMAND ----------
 
 # MAGIC %sql
+# MAGIC USE fp_g5;
 # MAGIC
-# MAGIC DROP TABLE IF EXISTS silver_dim_oil;
+# MAGIC DROP TABLE IF EXISTS silver_dim_oil_prices;
 # MAGIC
-# MAGIC CREATE TABLE silver_dim_oil(id BIGINT GENERATED ALWAYS AS IDENTITY, `date` DATE, oil_price DECIMAL(14,2)) TBLPROPERTIES (delta.enableChangeDataFeed= true)
+# MAGIC CREATE TABLE silver_dim_oil_prices(id BIGINT GENERATED ALWAYS AS IDENTITY, `date` DATE, oil_price DECIMAL(14,2)) TBLPROPERTIES (delta.enableChangeDataFeed= true)
 
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC INSERT INTO silver_dim_oil (`date`, oil_price) 
-# MAGIC SELECT * FROM bronze_oil;
+# MAGIC INSERT INTO silver_dim_oil_prices (`date`, oil_price) 
+# MAGIC SELECT * FROM bronze_oil_prices;
 
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC SELECT * FROM table_changes("silver_dim_oil",0) LIMIT 10
+# MAGIC SELECT * FROM table_changes("silver_dim_oil_prices",0) LIMIT 10
 
 # COMMAND ----------
 
-# DBTITLE 1,Work in progress - joined results.  TODO: repoint the bronze tables to silver tables
+# MAGIC %md
+# MAGIC ## silver_dim_holidays_events - as is for gold layer
+# MAGIC * this does not follow the kimball setup
+# MAGIC * this is specific based on gold build requirements
+
+# COMMAND ----------
+
 # MAGIC %sql
-# MAGIC SELECT
-# MAGIC   t.*,
-# MAGIC   pf.family,
-# MAGIC   d.is_national_holiday,
-# MAGIC   d.is_national_holiday_transferred,
-# MAGIC   d.is_payday,
-# MAGIC   d.is_earthquake_recovery,
-# MAGIC   d.days_since_earthquake,
-# MAGIC   IF(rh.date IS NOT NULL, True, False) AS is_regional_holiday,
-# MAGIC   s.*
-# MAGIC FROM silver_fact_sales AS t
-# MAGIC INNER JOIN silver_dim_store AS s ON
-# MAGIC   t.store_nbr = s.store_nbr
-# MAGIC INNER JOIN silver_dim_product_family AS pf ON
-# MAGIC   t.product_family_nbr = pf.product_family_nbr
-# MAGIC INNER JOIN silver_dim_date AS d ON
-# MAGIC   t.date = d.date
-# MAGIC LEFT OUTER JOIN silver_dim_regional_holiday AS rh ON
-# MAGIC   t.date = rh.date
-# MAGIC   AND (
-# MAGIC       (rh.locale = 'Local' AND s.city = rh.locale)
-# MAGIC       OR (rh.locale = 'Regional' AND s.state = rh.locale)
-# MAGIC   )
+# MAGIC SELECT * FROM bronze_holidays_events LIMIT 1
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC
+# MAGIC USE fp_g5;
+# MAGIC
+# MAGIC DROP TABLE IF EXISTS silver_dim_holidays_events;
+# MAGIC
+# MAGIC CREATE TABLE silver_dim_holidays_events (id BIGINT GENERATED BY DEFAULT AS IDENTITY, `date` DATE, `type` VARCHAR(100), locale VARCHAR(100), locale_name VARCHAR(100), `description` VARCHAR(100), transferred BOOLEAN) TBLPROPERTIES (delta.enableChangeDataFeed= true)
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC
+# MAGIC MERGE INTO silver_dim_holidays_events t
+# MAGIC USING bronze_holidays_events s
+# MAGIC ON
+# MAGIC t.date = s.date AND
+# MAGIC t.type = s.type AND
+# MAGIC t.locale = s.locale AND
+# MAGIC t.locale_name = s.locale_name
+# MAGIC WHEN MATCHED THEN UPDATE SET
+# MAGIC t.description = s.description,
+# MAGIC t.transferred = s.transferred
+# MAGIC WHEN NOT MATCHED THEN INSERT 
+# MAGIC     (`date`,
+# MAGIC     `type`,
+# MAGIC     `locale`,
+# MAGIC     `locale_name`,
+# MAGIC     `description`,
+# MAGIC     `transferred`)
+# MAGIC     VALUES 
+# MAGIC     (s.`date`,
+# MAGIC     s.`type`,
+# MAGIC     s.`locale`,
+# MAGIC     s.`locale_name`,
+# MAGIC     s.`description`,
+# MAGIC     s.`transferred`)
+# MAGIC
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### silver_fact_training
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC DROP TABLE IF EXISTS fp_g5.silver_fact_train;
+# MAGIC
+# MAGIC CREATE TABLE fp_g5.silver_fact_train (id INT, `date` DATE, store_nbr INT, family VARCHAR(100), sales INT, onpromotion INT) TBLPROPERTIES (delta.enableChangeDataFeed=True)
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC MERGE INTO fp_g5.silver_fact_train t
+# MAGIC USING fp_g5.bronze_train s
+# MAGIC ON t.date = s.date
+# MAGIC AND t.store_nbr = s.store_nbr
+# MAGIC AND t.family = s.family
+# MAGIC WHEN MATCHED THEN UPDATE SET 
+# MAGIC     t.sales = s.sales,
+# MAGIC     t.onpromotion = s.onpromotion
+# MAGIC     WHEN NOT MATCHED THEN INSERT 
+# MAGIC     (id, `date`,
+# MAGIC     store_nbr,
+# MAGIC     sales, onpromotion)
+# MAGIC     VALUES 
+# MAGIC     (s.id,
+# MAGIC     s.date,
+# MAGIC     s.store_nbr,
+# MAGIC     s.sales,
+# MAGIC     s.onpromotion) 
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC select count(*) from bronze_train
+
+# COMMAND ----------
+
+
