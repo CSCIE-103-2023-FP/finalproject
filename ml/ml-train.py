@@ -6,39 +6,23 @@
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC #### Synthetic Data for Training Purposes
-# MAGIC Using generated data-set for scaffolding
+# MAGIC #### Load Training Data from Silver Layer
+# MAGIC
 
 # COMMAND ----------
 
-# MAGIC %pip install dbldatagen
+import pyspark.sql.functions as F
+from pyspark.sql.window import Window
 
-# COMMAND ----------
-
-# generatedCode = analyzer.scriptDataGeneratorFromData()
-
-import dbldatagen as dg
-import pyspark.sql.types
-
-# Match expected modeling schema (from ML Exploratory Notebook)
-
-generation_spec = (
-    dg.DataGenerator(sparkSession=spark, 
-                     name='synthetic_data', 
-                     rows=1000000,
-                     random=True,
-                     )
-    .withIdOutput()
-    .withColumn('date', 'date', expr='date_add(current_date(), cast(floor(rand()*10) as int ))')
-    .withColumn('store_nbr', 'int', minValue=1, maxValue=54)
-    .withColumn('family', 'string', values=['HOME CARE', 'EGGS', 'DAIRY', 'MEATS', 'BEAUTY', 'BABY CARE'])
-    .withColumn('sales', 'double', minValue=0.0, maxValue=500, step=0.5)
-    .withColumn('onpromotion', 'int', values=[0,1], weights=[95,5])
-    .withColumn("oil_price", 'double', minValue=30, maxValue=75 )
-    .withColumn("is_holiday", 'int', values=[0,1], weights=[95,5])
-    )
-
-data_df = generation_spec.build()    
+# Most recent 6 months of data:
+data_source = "fp_g5.modeling_input"
+data_df = spark \
+           .sql(f"Select date, store_nbr, family, sales, onpromotion, oil_price,is_holiday from {data_source}") \
+            .withColumn("max_date", F.max("date").over(Window.orderBy(F.lit(1)))) \
+            .filter(F.col("date") >= F.add_months(F.col("max_date"), -12)) \
+            .filter(F.col("date") >= "2017-01-01") \
+            .filter(F.col("store_nbr") >= 4) \
+            .drop("max_date")
 
 # COMMAND ----------
 
@@ -69,12 +53,11 @@ from window_ops.rolling import rolling_mean, rolling_max, rolling_min
 # COMMAND ----------
 
 def getModels():
-  # Model Library (techniques):
+  # Best performing overall model from Exploratory Modeling:
   return {
             "rfr": make_pipeline(
-                      SimpleImputer(), 
-                      RandomForestRegressor(random_state=0, n_estimators=100)),
-            "xgbr": XGBRegressor(random_state=0, n_estimators=100)
+                      SimpleImputer(),
+                      RandomForestRegressor(random_state=0, n_estimators=100))
         }
 
 # COMMAND ----------
@@ -84,7 +67,7 @@ def setupForecaster(models):
   return MLForecast(
         models=models,
         freq='D',
-        lags=[1,2,4],
+        lags=[8,9,10,11,12],
         lag_transforms={
           1: [(rolling_mean, 4), (rolling_min, 4), (rolling_max, 4)],
         },
@@ -127,73 +110,98 @@ def validate_forecaster( models, ts_model, metrics, p_df ):
 
 # COMMAND ----------
 
+from mlflow.store.artifact.runs_artifact_repo import RunsArtifactRepository
 
+def register_and_update_model( model_name, runinfo ):
+  client = mlflow.tracking.MlflowClient()
+  registered_model = client.create_registered_model(model_name)
+  # Update model version
+  runs_uri = "runs:/" + runinfo.run_uuid + f"/{model_name}"
+  model_src = RunsArtifactRepository.get_underlying_uri(runs_uri)
+  client.create_model_version(model_name, model_src, runinfo.run_id)
+
+# COMMAND ----------
 
 # Data-set Return Schema:
 result_schema =StructType([
-  StructField('store_nbr',IntegerType()),
-  StructField('family', StringType()),
+  StructField('model_name',StringType()),
   StructField('status', BooleanType()),
+  StructField('rmse', DoubleType()),
   StructField('message', StringType())
   ])
 
 @pandas_udf(result_schema, PandasUDFType.GROUPED_MAP)
 def build_model(p_df):
   # https://forecastegy.com/posts/multivariate-time-series-forecasting-in-python/
+  
   # Return df values:
-  return_df = pd.DataFrame(columns=('store_nbr', 'family', 'status', 'message'))
+  return_df = pd.DataFrame(columns=('model_name', 'status', 'rmse', 'message'))
   store_num = p_df['store_nbr'].iloc[0]
   family = p_df['family'].iloc[0]
   tstamp = round(time.time() * 1000)
 
   # Adjust Pandas dataframe to default specs:
   p_df['date'] = pd.to_datetime(p_df.date)
-  p_df = p_df.drop(columns=['family'])
-  p_df = p_df.rename(columns={"date": "ds", "store_nbr":"unique_id", "sales":"y"})
+  p_df['unique_id'] = p_df['store_nbr'].astype(str) + "_" + p_df['family']
+  p_df = p_df.rename(columns={"date": "ds", "sales":"y"})
+  p_df = p_df.drop(columns=['family', 'store_nbr'], errors='ignore')
 
+  model_name = f"{store_num}_{family}_model"
+
+  static_features = []
   dynamic_features = ['onpromotion', 'oil_price', 'is_holiday']
 
-  with mlflow.start_run(run_name=f"{store_num}_{family}_{tstamp}"):
+  with mlflow.start_run(run_name=f"{store_num}_{family}_{tstamp}") as run:
     try:
 
       models = getModels()
       ts_model = setupForecaster(models)
-      evaluations = validate_forecaster(models, ts_model, [mape, rmse], p_df)
-      rfr_mape = evaluations['rfr']['mape']
+      evaluations = validate_forecaster(models, ts_model, [rmse], p_df)
       rfr_rmse = evaluations['rfr']['rmse']
-      xgbr_mape = evaluations['xgbr']['mape']
-      xgbr_rmse = evaluations['xgbr']['rmse']
-
+      
       # Model Training:
-      #ts_model.fit(
-      #  p_df, 
-      #  id_col='store_nbr', 
-      #  time_col='date', 
-      #  target_col='sales', 
-      #  static_features=[])
+      ts_model.fit(
+        p_df,
+        static_features=static_features,
+        max_horizon=21)
       
       # Store mlflow params, etc:
       mlflow.log_param("store", store_num)
       mlflow.log_param("family", family)
-      mlflow.log_metric("rfr_mape", rfr_mape )
       mlflow.log_metric("rfr_rmse", rfr_rmse )
-      mlflow.log_metric("xgbr_mape", xgbr_mape )
-      mlflow.log_metric("xgbr_rmse", xgbr_rmse )
-      mlflow.sklearn.log_model(ts_model, f"{store_num}_{family}_model")
+      
+      # Potentially: if a > b: ts_model.models_["a"][0]
+      mlflow.sklearn.log_model(ts_model, model_name, registered_model_name=model_name )
+
+      # Store updated best performing model in Registry:
+      #register_and_update_model( model_name, run.info )
 
       # Return successful:
-      return_df.loc[len(return_df.index)] = [store_num, family, True, ''] 
+      return_df.loc[len(return_df.index)] = [model_name, True, rfr_rmse, ''] 
   
     except Exception as e:
-      return_df.loc[len(return_df.index)] = [store_num, family, False, str(e)]
+      return_df.loc[len(return_df.index)] = [model_name, False, 0, str(e)]
   
   return return_df
 
 
 # COMMAND ----------
 
-model_output_df = data_df.groupBy( 'store_nbr', 'family').apply(build_model)
+from pyspark.sql import functions as F
+# .filter( (F.col('store_nbr') == 18) & (F.col('family') == 'HOME CARE') ) \                    
+model_output_df = data_df \
+                    .filter( (F.col('store_nbr') <= 18) & (F.col('family') == 'HOME CARE') ) \
+                    .groupBy('store_nbr', 'family') \
+                    .apply(build_model)
 display(model_output_df)
+
+# COMMAND ----------
+
+tbl_name = "fp_g5.prediction_log"
+df = model_output_df \
+      .withColumnRenamed("message", "error_msg") \
+
+df.write.format("delta").mode("append").saveAsTable(tbl_name)
 
 # COMMAND ----------
 

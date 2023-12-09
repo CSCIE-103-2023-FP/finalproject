@@ -120,6 +120,10 @@ display(encoded_df)
 
 # COMMAND ----------
 
+# encoded_df.write.mode("overwrite").saveAsTable("fp_g5.modeling_input")
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC #### Convert to Pandas
 
@@ -142,13 +146,15 @@ import matplotlib.pyplot as plt
 
 # Select Store & Family for specific trend:
 store_nbr = 18
-family = "CLEANING"
+family = "HOME CARE"
 
 p_data = p_df[ 
-              (p_df["store_nbr"] == store_nbr) & 
-              (p_df["family"] == family ) &
-              (p_df["date"] > '2016-08-01' ) ]
-plt.plot(p_data['date'], p_data['sales'])
+              (p_df["store_nbr"] == store_nbr) &
+              (p_df["family"] == family ) & 
+              (p_df["date"] > '2017-01-01' ) ]
+
+# p_data.groupby("family").plot('date','sales')
+p_data.plot('date', 'sales')
 
 # COMMAND ----------
 
@@ -161,23 +167,20 @@ plt.plot(p_data['date'], p_data['sales'])
 
 # COMMAND ----------
 
-# Static or transformed features:
-p_data = p_data.drop(columns=['city','state','id','family', 'national_holiday','regional_holiday','local_holiday'], errors='ignore')
-
 # Static features:
-static_features = ['type_A', 'type_B', 'type_C', 'type_D', 
+store_characteristics = ['type_A', 'type_B', 'type_C', 'type_D', 
                    'cluster_1', 'cluster_2','cluster_3','cluster_4', 'cluster_6', 'cluster_7', 'cluster_8', 'cluster_9',
                    'cluster_10','cluster_11','cluster_12', 'cluster_13','cluster_14','cluster_15','cluster_16','cluster_17'] # store static features
-p_data = p_data.drop(columns=static_features, errors='ignore')
+p_data = p_data.drop(columns=store_characteristics, errors='ignore')
 
 # Column renaming to MLForecast defaults:
-p_data = p_data.rename(columns={"date": "ds", "store_nbr":"unique_id", "sales":"y"})
+p_data['unique_id'] = p_data['family'] + "_" + p_data['store_nbr'].astype(str)
+p_data = p_data.rename(columns={"date": "ds", "sales":"y"})
+
+# Static or transformed features:
+p_data = p_data.drop(columns=['family', 'store_nbr', 'city','state','id', 'national_holiday','regional_holiday','local_holiday'], errors='ignore')
 
 p_data
-
-# COMMAND ----------
-
-str(f"{p_data.dtypes} --> {p_data.head()}")
 
 # COMMAND ----------
 
@@ -191,8 +194,7 @@ from window_ops.rolling import rolling_mean, rolling_max, rolling_min
 # https://forecastegy.com/posts/multivariate-time-series-forecasting-in-python/
 # https://nixtlaverse.nixtla.io/mlforecast/docs/tutorials/electricity_load_forecasting.html
 
-
-
+static_features = []
 dynamic_features = ['onpromotion', 'oil_price', 'is_holiday']
 
 models = {
@@ -214,6 +216,11 @@ ts_model = MLForecast(
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC #### Evaluation
+
+# COMMAND ----------
+
 c_df = ts_model.cross_validation(
   df = p_data,
   h=7,
@@ -225,12 +232,15 @@ c_df.head()
 
 # COMMAND ----------
 
+def plot_cv(df, df_cv, uid, last_n=24 * 14):
+    cutoffs = df_cv.query('unique_id == @uid')['cutoff'].unique()
+    fig, ax = plt.subplots(nrows=len(cutoffs), ncols=1, figsize=(14, 6), gridspec_kw=dict(hspace=0.8))
+    for cutoff, axi in zip(cutoffs, ax.flat):
+        df.query('unique_id == @uid').tail(last_n).set_index('ds').plot(ax=axi, title=uid, y='y')
+        df_cv.query('unique_id == @uid & cutoff == @cutoff').set_index('ds').plot(ax=axi, title=uid, y='rfr')
+    
+plot_cv(p_data, c_df, 'HOME CARE_18')
 
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC #### Evaluation
 
 # COMMAND ----------
 
@@ -270,12 +280,17 @@ evaluations['rfr']['mape']
 
 ts_model.fit(
   p_data,
-  static_features=[],
+  static_features=static_features,
   max_horizon=14)
 
 # COMMAND ----------
 
 p_data.tail()
+
+# COMMAND ----------
+
+prep = ts_model.preprocess(p_data)
+prep
 
 # COMMAND ----------
 
@@ -295,19 +310,24 @@ shap.plots.beeswarm(shap_values)
 import pandas as pd
 
 x_df_data = [
-  [18, pd.Timestamp('2017-08-16'), 21, 47.57,1],
-  [18, pd.Timestamp('2017-08-17'), 21, 47.57,1],
+  ["HOME CARE_18", max_ts + datetime.timedelta(days=1), 21, 47.57,1],
+  ["HOME CARE_18", max_ts + datetime.timedelta(days=2), 21, 47.57,1],
 ]
 
 x_df = pd.DataFrame(x_df_data, columns=['unique_id', 'ds','onpromotion','oil_price','is_holiday'])
-
-# COMMAND ----------
-
 x_df
 
 # COMMAND ----------
 
-ts_model.predict( 1, X_df=x_df)
+future_ds = ts_model.make_future_dataframe(7)
+future_ds['onpromotion'] = 0
+future_ds['oil_price'] = 50
+future_ds['is_holiday'] = 0
+future_ds
+
+# COMMAND ----------
+
+ts_model.predict( 7, X_df=future_ds)
 
 # COMMAND ----------
 
