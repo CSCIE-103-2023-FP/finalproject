@@ -25,13 +25,9 @@ from pyspark.sql.types import ArrayType,IntegerType,StringType,DateType,StructTy
 # COMMAND ----------
 
 schema = StructType([
-    StructField("date", TimestampType(), True),
+    StructField("date", DateType(), True),
     StructField("dcoilwtico", DoubleType(), True)
 ])
-
-# COMMAND ----------
-
-schema_oil_prices = spark.read.format("csv").option("inferSchema", True).option("header", "true").load('/mnt/g5/landingzone/oil_prices.csv').schema
 
 # COMMAND ----------
 
@@ -49,22 +45,10 @@ data_stream_df = (
     .option("cloudFiles.format", "csv")  # Specify CSV format
     .option("pathGlobFilter", "*oil*.csv")
     .option("header", True)    
-    .schema(schema_oil_prices)
+    .schema(schema)
     .load(f"{rawDataSource}")    
     
 )
-
-# COMMAND ----------
-
-display(data_stream_df)
-
-# COMMAND ----------
-
-# MAGIC %fs ls '/mnt/g5/bronze/oil_prices'
-
-# COMMAND ----------
-
-# MAGIC %fs ls '/mnt/g5/bronze/bronze_check_point/oil_prices'
 
 # COMMAND ----------
 
@@ -72,26 +56,22 @@ delta_table_path = bronze_path+'/oil_prices'
 oil_prices_checkpoint_location = f"{bronzeCheckpoint}/oil_prices"
 
 query = (
-    data_stream.writeStream
+    data_stream_df.writeStream
     .format("delta")
     .outputMode("append")
     .option("mergeSchema", "true")
-    .option("checkpointLocation", oil_prices_checkpoint_location)  # Provide a checkpoint directory
+    .option("checkpointLocation", oil_prices_checkpoint_location)
+    .trigger(availableNow=True)
     .start(delta_table_path)
 )
 
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC SELECT * FROM bronze_oil_prices
-
-# COMMAND ----------
-
-# MAGIC %sql
-# MAGIC DELETE FROM bronze_oil_prices WHERE date  is null
-# MAGIC
-
-# COMMAND ----------
-
-for stream in spark.streams.active:
-    stream.stop()
+# MAGIC MERGE INTO bronze_oil_prices as d
+# MAGIC USING (SELECT *, CAST(dt as date) as date from merge_table) m
+# MAGIC on d.date = m.dt
+# MAGIC WHEN MATCHED THEN 
+# MAGIC   UPDATE SET *
+# MAGIC WHEN NOT MATCHED 
+# MAGIC   THEN INSERT *
