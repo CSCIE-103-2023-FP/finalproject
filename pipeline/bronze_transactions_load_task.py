@@ -34,7 +34,7 @@ transactions_df = spark.readStream.format("cloudFiles") \
 transactions_checkpoint_location = f"{bronzeCheckpoint}/transactions"
 bronze_transactions_deltapath=bronze_path+'/transactions'
 dbutils.fs.rm(transactions_checkpoint_location, True) #reset checkpoint so it reloads the file
-transactions_df.writeStream.option("path", bronze_transactions_deltapath).outputMode("append").format("delta").option("checkpointLocation", transactions_checkpoint_location).option("mergeSchema", "true").table(bronze_table_name)
+transactions_df.writeStream.option("path", bronze_transactions_deltapath).outputMode("append").format("delta").option("checkpointLocation", transactions_checkpoint_location).option("mergeSchema", "true").trigger(availableNow=True).table(bronze_table_name)
 
 # COMMAND ----------
 

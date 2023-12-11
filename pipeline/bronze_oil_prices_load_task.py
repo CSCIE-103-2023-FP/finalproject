@@ -34,7 +34,7 @@ oil_prices_df  = spark.readStream.format("cloudFiles") \
 oil_prices_checkpoint_location = f"{bronzeCheckpoint}/oil_prices"
 bronze_oil_prices_deltapath=bronze_path+'/oil_prices'
 dbutils.fs.rm(oil_prices_checkpoint_location, True) #reset checkpoint so it reloads the file
-oil_prices_df.writeStream.option("path", bronze_oil_prices_deltapath).outputMode("append").format("delta").option("checkpointLocation", oil_prices_checkpoint_location).option("mergeSchema", "true").table(bronze_table_name)
+oil_prices_df.writeStream.option("path", bronze_oil_prices_deltapath).outputMode("append").format("delta").option("checkpointLocation", oil_prices_checkpoint_location).option("mergeSchema", "true").trigger(availableNow=True).table(bronze_table_name)
 
 # COMMAND ----------
 

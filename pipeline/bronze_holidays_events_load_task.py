@@ -34,7 +34,7 @@ holidays_events_df = spark.readStream.format("cloudFiles") \
 holidays_events_checkpoint_location = f"{bronzeCheckpoint}/holidays_events"
 bronze_holidays_events_deltapath=bronze_path+'/holidays_events'
 dbutils.fs.rm(holidays_events_checkpoint_location, True) #reset checkpoint so it reloads the file
-holidays_events_df.writeStream.option("path", bronze_holidays_events_deltapath).outputMode("append").format("delta").option("checkpointLocation", holidays_events_checkpoint_location).option("mergeSchema", "true").table(bronze_table_name)
+holidays_events_df.writeStream.option("path", bronze_holidays_events_deltapath).outputMode("append").format("delta").option("checkpointLocation", holidays_events_checkpoint_location).option("mergeSchema", "true").trigger(availableNow=True).table(bronze_table_name)
 
 # COMMAND ----------
 
