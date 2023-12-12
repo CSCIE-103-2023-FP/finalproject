@@ -8,7 +8,7 @@
 # MAGIC                           ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS total_transactions, _change_type
 # MAGIC from fp_g5.silver_dim_transactions trans
 # MAGIC INNER JOIN (SELECT distinct store_nbr, month(date) as month_transactions_date, year(date) year_transactions_date, _change_type
-# MAGIC             from table_changes('fp_g5.silver_dim_transactions',2)
+# MAGIC             from table_changes('fp_g5.silver_dim_transactions',0)
 # MAGIC             where _change_type not in  ('update_preimage', 'delete')) change_trans
 # MAGIC on month(trans.date) = change_trans.month_transactions_date
 # MAGIC and year(trans.date) = change_trans.year_transactions_date
