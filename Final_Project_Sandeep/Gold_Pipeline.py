@@ -17,19 +17,24 @@ spark.sql(f"use {databaseName}")
 
 # COMMAND ----------
 
-# MAGIC %sql
-# MAGIC --execute
-# MAGIC drop table if exists  sandeepbhargava1986_Assgn_test.silver_train_set_test ;
-# MAGIC
-# MAGIC CREATE TABLE sandeepbhargava1986_Assgn_test.silver_train_set_test (id string, date string, store_nbr string, family STRING, SALES string, ONPROMOTION string) USING delta TBLPROPERTIES (delta.enableChangeDataFeed = true)
+databaseName = 'fp_g5'
+spark.sql(f"use {databaseName}")
 
 # COMMAND ----------
 
 # MAGIC %sql
 # MAGIC --execute
-# MAGIC drop table if exists silver_oil_set9;
+# MAGIC drop table if exists  fp_g5.silver_train_set_test ;
 # MAGIC
-# MAGIC CREATE TABLE silver_oil_set9 (date string, dcoilwtico string) USING delta TBLPROPERTIES (delta.enableChangeDataFeed = true)
+# MAGIC CREATE TABLE fp_g5.silver_train_set_test (id string, date string, store_nbr string, family STRING, SALES string, ONPROMOTION string) USING delta TBLPROPERTIES (delta.enableChangeDataFeed = true)
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC --execute
+# MAGIC drop table if exists silver_oil_set9_test;
+# MAGIC
+# MAGIC CREATE TABLE silver_oil_set9_test (date string, dcoilwtico string) USING delta TBLPROPERTIES (delta.enableChangeDataFeed = true)
 # MAGIC
 # MAGIC
 
@@ -47,9 +52,9 @@ spark.sql(f"use {databaseName}")
 
 # MAGIC %sql
 # MAGIC --execute
-# MAGIC drop table if exists silver_stores_set12;
+# MAGIC drop table if exists silver_stores_set12_test;
 # MAGIC
-# MAGIC CREATE TABLE silver_stores_set12 (store_nbr string, city string, state string, type string, cluster string) USING delta TBLPROPERTIES (delta.enableChangeDataFeed = true)
+# MAGIC CREATE TABLE silver_stores_set12_test (store_nbr string, city string, state string, type string, cluster string) USING delta TBLPROPERTIES (delta.enableChangeDataFeed = true)
 # MAGIC
 # MAGIC   
 
@@ -107,7 +112,7 @@ OilDF = (spark.read
     .option("header", True)
     .csv('dbfs:/mnt/data/2023-kaggle-final/store-sales/oil.csv'))
 
-OilDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_oil_set9")
+OilDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_oil_set9_test")
 
 # COMMAND ----------
 
@@ -130,7 +135,7 @@ StorDF = (spark.read
     .option("header", True)
     .csv('dbfs:/mnt/data/2023-kaggle-final/store-sales/stores.csv'))
 
-StorDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_stores_set12")
+StorDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_stores_set12_test")
 
 
 # COMMAND ----------
@@ -222,6 +227,24 @@ holDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_hol
 # COMMAND ----------
 
 # MAGIC %sql
+# MAGIC
+# MAGIC insert into silver_stores_set12_test VALUES('10000', 'test', 'test', 'M', '12');
+# MAGIC
+# MAGIC update silver_stores_set12_test
+# MAGIC set city = 'testimg'
+# MAGIC where store_nbr = '1';
+# MAGIC
+# MAGIC
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC
+# MAGIC select * from silver_stores_set12_test
+
+# COMMAND ----------
+
+# MAGIC %sql
 # MAGIC --execute
 # MAGIC drop table if exists fp_g5.GOLD_OIL_PRICE_DTLS;
 # MAGIC
@@ -247,9 +270,14 @@ holDF.write.mode("append").option("mergeSchema", "true").saveAsTable("silver_hol
 
 # MAGIC %sql
 # MAGIC --execute
-# MAGIC drop table if exists fp_g5.GOLD_STORES_DTLS;
+# MAGIC drop table if exists fp_g5.GOLD_STORES_test;
 # MAGIC
-# MAGIC CREATE OR REPLACE TABLE fp_g5.GOLD_STORES_DTLS (store_nbr int, CITY varchar(100), STATE varchar(100), TYPE varchar(2), CLUSTER int, active_ind string, expiry_timestmp string, stat string, proc_dt date) USING delta 
+# MAGIC CREATE OR REPLACE TABLE fp_g5.GOLD_STORES_test (store_nbr string, CITY string, STATE string, TYPE string, CLUSTER string, active_ind string, expiry_timestmp string,  proc_dt date) USING delta ;
+# MAGIC
+# MAGIC
+# MAGIC drop table if exists silver_stores_set12_test;
+# MAGIC
+# MAGIC CREATE TABLE silver_stores_set12_test (store_nbr string, CITY string, STATE string, TYPE string, CLUSTER string) USING delta TBLPROPERTIES (delta.enableChangeDataFeed = true)
 
 # COMMAND ----------
 
@@ -478,19 +506,22 @@ and change_trans.store_nbr = trans.store_nbr
 # MAGIC %sql
 # MAGIC --execute
 # MAGIC --sum of total sales  per month per store nbr per product family - sales info
-# MAGIC MERGE INTO fp_g5.GOLD_STORES_DTLS USING
+# MAGIC MERGE INTO fp_g5.GOLD_STORES_test USING
 # MAGIC (SELECT distinct store_nbr, city, state, type, cluster,  _change_type 
-# MAGIC             from table_changes('fp_g5.silver_dim_store',0)
+# MAGIC             from table_changes('fp_g5.silver_stores_set12_test',2)
 # MAGIC              WHERE date(_COMMIT_TIMESTAMP) = CURRENT_DATE()
 # MAGIC             ) cdf_silver
-# MAGIC on  (fp_g5.GOLD_STORES_DTLS.store_nbr = cdf_silver.store_nbr
-# MAGIC and fp_g5.GOLD_STORES_DTLS.stat = cdf_silver._change_type)
-# MAGIC OR (fp_g5.GOLD_STORES_DTLS.store_nbr = cdf_silver.store_nbr
-# MAGIC and cdf_silver._change_type =  'delete')
+# MAGIC on  fp_g5.GOLD_STORES_test.store_nbr = cdf_silver.store_nbr
+# MAGIC and cdf_silver._change_type in  ('update_preimage', 'delete')
 # MAGIC when matched and cdf_silver._change_type in ('update_preimage', 'delete') then
-# MAGIC     update set  active_ind = 'N', expiry_timestmp = current_date(), stat = 'inactive', proc_dt = current_date()
+# MAGIC     update set  active_ind = 'N', expiry_timestmp = current_date(),  proc_dt = current_date()
 # MAGIC when not matched then
-# MAGIC     insert (store_nbr, city,state, type, cluster, active_ind, expiry_timestmp, stat, proc_dt)  values (cdf_silver.store_nbr, cdf_silver.city,cdf_silver.state, cdf_silver.type, cdf_silver.cluster, 'Y', '9999-12-31', 'update_preimage', current_date());
+# MAGIC     insert (store_nbr, city,state, type, cluster, active_ind, expiry_timestmp, proc_dt)  values (cdf_silver.store_nbr, cdf_silver.city,cdf_silver.state, cdf_silver.type, cdf_silver.cluster, 'Y', '9999-12-31' ,current_date());
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC select * from fp_g5.GOLD_STORES_test
 
 # COMMAND ----------
 
