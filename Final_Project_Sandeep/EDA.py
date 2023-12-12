@@ -142,3 +142,8 @@ EnergyDF.createOrReplaceTempView('county_id')
 
 # MAGIC %sql
 # MAGIC select * from client
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC select * from fp_g5.modeling_input
