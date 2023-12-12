@@ -41,4 +41,4 @@ df.writeStream.option("path", bronze_train_deltapath).outputMode("append").forma
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC SELECT * FROM bronze_train
+# MAGIC SELECT * FROM  bronze_train 
